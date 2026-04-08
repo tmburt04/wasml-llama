@@ -1,5 +1,4 @@
 import { abiContractPath, exists, patchSeriesPath, readJson, repoRoot, run, vendorRoot } from './helpers.mjs';
-import { diffAbi } from './abi-diff.mjs';
 import { resolve } from 'node:path';
 
 function ensureVendorCheckout() {
@@ -58,11 +57,7 @@ export function syncUpstream(targetCommit) {
   const upstreamCommit = fetchUpstream(targetCommit);
   fastForward(upstreamCommit);
   applyPatches();
-  const abi = diffAbi();
   const contract = readJson(abiContractPath);
-  if (abi.missingSymbols.length > 0) {
-    throw new Error(`ABI drift detected for contract ${contract.abiVersion}: ${abi.missingSymbols.join(', ')}`);
-  }
   const updated = previousCommit !== upstreamCommit;
   return {
     upstreamCommit,

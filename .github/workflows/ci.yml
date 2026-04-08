@@ -29,8 +29,8 @@ jobs:
       sync-updated: ${{ steps.sync.outputs.updated }}
       sync-changelog: ${{ steps.sync.outputs.changelog }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -66,10 +66,10 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -109,8 +109,8 @@ jobs:
     env:
       UPSTREAM_COMMIT: ${{ needs.quality.outputs.upstream-commit }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -118,6 +118,9 @@ jobs:
       - run: npm ci
       - run: node ci/scripts/sync-upstream.mjs "$UPSTREAM_COMMIT"
       - run: npm run wasm:build:cpu -- --version "${RELEASE_VERSION}-cpu" --upstream-commit "$UPSTREAM_COMMIT"
+      - env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-cpu
+        run: node ci/scripts/check-abi.mjs
       - env:
           RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-cpu
         run: node ci/scripts/check-release.mjs
@@ -137,8 +140,8 @@ jobs:
     env:
       UPSTREAM_COMMIT: ${{ needs.quality.outputs.upstream-commit }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -148,6 +151,9 @@ jobs:
       - run: npm ci
       - run: node ci/scripts/sync-upstream.mjs "$UPSTREAM_COMMIT"
       - run: npm run wasm:build:webgpu -- --version "${RELEASE_VERSION}-webgpu" --upstream-commit "$UPSTREAM_COMMIT"
+      - env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-webgpu
+        run: node ci/scripts/check-abi.mjs
       - env:
           RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-webgpu
         run: node ci/scripts/check-release.mjs

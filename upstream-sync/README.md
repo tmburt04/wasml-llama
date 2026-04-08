@@ -14,8 +14,8 @@
 CI already treats upstream as the source of truth:
 
 - `ci/scripts/sync-upstream.mjs` invokes `upstream-sync/scripts/cli.mjs sync`.
-- `upstream-sync/scripts/sync.mjs` fetches the latest upstream commit into `vendor/llama.cpp`, checks it out, reapplies `patches/series.json`, and then verifies the bridge ABI against `abi/contract.json`.
-- The main workflow then builds fresh WASM artifacts and runs the normal validation gates.
+- `upstream-sync/scripts/sync.mjs` fetches the latest upstream commit into `vendor/llama.cpp`, checks it out, and reapplies `patches/series.json`.
+- The main workflow then builds fresh WASM artifacts and verifies the bridge ABI against `abi/contract.json` before the remaining validation gates run.
 
 That means **no intervention is required** when all of these continue to pass.
 
