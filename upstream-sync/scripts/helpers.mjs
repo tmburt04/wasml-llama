@@ -17,6 +17,9 @@ export function run(command, args, cwd = repoRoot) {
     stdio: 'pipe',
     encoding: 'utf8',
   });
+  if (result.error) {
+    throw new Error(`${command} ${args.join(' ')} failed: ${result.error.message}`);
+  }
   if (result.status !== 0) {
     const stderr = result.stderr?.trim();
     const stdout = result.stdout?.trim();
