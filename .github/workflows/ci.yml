@@ -9,6 +9,13 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   RELEASE_VERSION: ci-${{ github.run_number }}
   WASML_QWEN_MODEL_URL: ${{ vars.WASML_QWEN_MODEL_URL || 'https://huggingface.co/lmstudio-community/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf?download=1' }}
@@ -18,6 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sync-result: ${{ steps.sync.outputs.result }}
+      upstream-commit: ${{ steps.sync.outputs.upstream-commit }}
+      sync-updated: ${{ steps.sync.outputs.updated }}
+      sync-changelog: ${{ steps.sync.outputs.changelog }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,16 +37,29 @@ jobs:
       - run: npm ci
       - id: sync
         run: |
-          RESULT=$(node ci/scripts/sync-upstream.mjs)
+          RESULT_FILE="$RUNNER_TEMP/sync-result.json"
+          node ci/scripts/sync-upstream.mjs > "$RESULT_FILE"
           echo "result<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$RESULT" >> "$GITHUB_OUTPUT"
+          node --input-type=module -e "import { readFileSync } from 'node:fs'; process.stdout.write(readFileSync(process.argv[1], 'utf8'));" "$RESULT_FILE" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "upstream-commit<<EOF" >> "$GITHUB_OUTPUT"
+          node --input-type=module -e "import { readFileSync } from 'node:fs'; const result = JSON.parse(readFileSync(process.argv[1], 'utf8')); process.stdout.write(result.upstreamCommit);" "$RESULT_FILE" >> "$GITHUB_OUTPUT"
+          echo >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "updated<<EOF" >> "$GITHUB_OUTPUT"
+          node --input-type=module -e "import { readFileSync } from 'node:fs'; const result = JSON.parse(readFileSync(process.argv[1], 'utf8')); process.stdout.write(String(result.updated));" "$RESULT_FILE" >> "$GITHUB_OUTPUT"
+          echo >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
+          node --input-type=module -e "import { readFileSync } from 'node:fs'; const result = JSON.parse(readFileSync(process.argv[1], 'utf8')); process.stdout.write(result.changelog ?? '');" "$RESULT_FILE" >> "$GITHUB_OUTPUT"
+          echo >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
 
   open-sync-pr:
-    if: github.event_name == 'schedule' && fromJSON(needs.quality.outputs.sync-result).updated
+    if: github.event_name == 'schedule' && needs.quality.outputs.sync-updated == 'true'
     runs-on: ubuntu-latest
     needs: quality
     permissions:
@@ -51,26 +74,27 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node ci/scripts/sync-upstream.mjs
+      - run: node ci/scripts/sync-upstream.mjs "${{ needs.quality.outputs.upstream-commit }}"
       - name: Create sync branch and PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SYNC_RESULT: ${{ needs.quality.outputs.sync-result }}
+          UPSTREAM_COMMIT: ${{ needs.quality.outputs.upstream-commit }}
+          CHANGELOG: ${{ needs.quality.outputs.sync-changelog }}
         run: |
-          COMMIT=$(echo "$SYNC_RESULT" | jq -r '.upstreamCommit')
-          CHANGELOG=$(echo "$SYNC_RESULT" | jq -r '.changelog')
-          SHORT=$(echo "$COMMIT" | head -c 10)
+          SHORT=$(echo "$UPSTREAM_COMMIT" | head -c 10)
           BRANCH="upstream-sync/${SHORT}"
+          git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1 && exit 0
           git checkout -b "$BRANCH"
           git add upstream-sync/vendor
-          git commit -m "chore: sync llama.cpp upstream to ${SHORT}" || exit 0
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: sync llama.cpp upstream to ${SHORT}"
           git push -u origin "$BRANCH"
           gh pr create \
             --title "chore: sync llama.cpp upstream to ${SHORT}" \
             --body "$(cat <<EOF
           ## Upstream sync
 
-          Updated llama.cpp vendor to \`${COMMIT}\`.
+          Updated llama.cpp vendor to \`${UPSTREAM_COMMIT}\`.
 
           ### Changelog
           \`\`\`
@@ -82,6 +106,8 @@ jobs:
   build-cpu:
     runs-on: ubuntu-latest
     needs: quality
+    env:
+      UPSTREAM_COMMIT: ${{ needs.quality.outputs.upstream-commit }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -90,8 +116,8 @@ jobs:
           cache: npm
       - uses: mymindstorm/setup-emsdk@v14
       - run: npm ci
-      - run: node ci/scripts/sync-upstream.mjs
-      - run: npm run wasm:build:cpu -- --version "${RELEASE_VERSION}-cpu" --upstream-commit "$(git -C upstream-sync/vendor/llama.cpp rev-parse HEAD)"
+      - run: node ci/scripts/sync-upstream.mjs "$UPSTREAM_COMMIT"
+      - run: npm run wasm:build:cpu -- --version "${RELEASE_VERSION}-cpu" --upstream-commit "$UPSTREAM_COMMIT"
       - env:
           RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-cpu
         run: node ci/scripts/check-release.mjs
@@ -108,6 +134,8 @@ jobs:
   build-webgpu:
     runs-on: ubuntu-latest
     needs: quality
+    env:
+      UPSTREAM_COMMIT: ${{ needs.quality.outputs.upstream-commit }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -118,8 +146,8 @@ jobs:
       - uses: browser-actions/setup-chrome@v1
         id: chrome
       - run: npm ci
-      - run: node ci/scripts/sync-upstream.mjs
-      - run: npm run wasm:build:webgpu -- --version "${RELEASE_VERSION}-webgpu" --upstream-commit "$(git -C upstream-sync/vendor/llama.cpp rev-parse HEAD)"
+      - run: node ci/scripts/sync-upstream.mjs "$UPSTREAM_COMMIT"
+      - run: npm run wasm:build:webgpu -- --version "${RELEASE_VERSION}-webgpu" --upstream-commit "$UPSTREAM_COMMIT"
       - env:
           RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-webgpu
         run: node ci/scripts/check-release.mjs

@@ -1,11 +1,11 @@
 import { diffAbi } from './abi-diff.mjs';
 import { syncUpstream } from './sync.mjs';
 
-const [, , command] = process.argv;
+const [, , command, targetCommit] = process.argv;
 
 async function main() {
   if (command === 'sync') {
-    console.log(JSON.stringify(syncUpstream(), null, 2));
+    console.log(JSON.stringify(syncUpstream(targetCommit), null, 2));
     return;
   }
   if (command === 'abi-diff') {

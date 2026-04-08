@@ -9,7 +9,11 @@ function ensureVendorCheckout() {
   run('git', ['clone', '--depth', '1', 'https://github.com/ggml-org/llama.cpp.git', vendorRoot], repoRoot);
 }
 
-function fetchUpstream() {
+function fetchUpstream(targetCommit) {
+  if (targetCommit) {
+    run('git', ['fetch', '--depth', '1', 'origin', targetCommit], vendorRoot);
+    return run('git', ['rev-parse', 'FETCH_HEAD'], vendorRoot);
+  }
   run('git', ['fetch', '--depth', '1', 'origin'], vendorRoot);
   const headRef = run('git', ['rev-parse', '--abbrev-ref', 'origin/HEAD'], vendorRoot);
   return run('git', ['rev-parse', headRef], vendorRoot);
@@ -48,10 +52,10 @@ function changelog(oldCommit, newCommit) {
   }
 }
 
-export function syncUpstream() {
+export function syncUpstream(targetCommit) {
   ensureVendorCheckout();
   const previousCommit = currentVendorCommit();
-  const upstreamCommit = fetchUpstream();
+  const upstreamCommit = fetchUpstream(targetCommit);
   fastForward(upstreamCommit);
   applyPatches();
   const abi = diffAbi();
