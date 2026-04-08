@@ -1,4 +1,5 @@
 import { abiContractPath, newestVersionDirectory, readJson, run, repoRoot } from './helpers.mjs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 function parseNmSymbols(output) {
@@ -7,6 +8,14 @@ function parseNmSymbols(output) {
     .map((line) => line.trim().split(/\s+/).at(-1))
     .filter(Boolean)
     .sort();
+}
+
+function readModuleSymbols(modulePath) {
+  const moduleText = readFileSync(modulePath, 'utf8');
+  const matches = [...moduleText.matchAll(/\["(_[A-Za-z0-9_]+)"\]/g)]
+    .map((match) => match[1])
+    .filter(Boolean);
+  return [...new Set(matches)].sort();
 }
 
 function readWasmSymbols(artifactPath) {
@@ -33,8 +42,13 @@ export function loadCurrentSymbols(version) {
   if (!selectedVersion) {
     return [];
   }
+  const modulePath = resolve(repoRoot, 'wasm-build', 'dist', selectedVersion, 'core.js');
   const artifactPath = resolve(repoRoot, 'wasm-build', 'dist', selectedVersion, 'core.wasm');
-  return readWasmSymbols(artifactPath);
+  try {
+    return readModuleSymbols(modulePath);
+  } catch {
+    return readWasmSymbols(artifactPath);
+  }
 }
 
 export function diffAbi(version) {
