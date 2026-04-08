@@ -30,6 +30,8 @@ jobs:
       sync-changelog: ${{ steps.sync.outputs.changelog }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -103,37 +105,6 @@ jobs:
           EOF
           )"
 
-  build-cpu:
-    runs-on: ubuntu-latest
-    needs: quality
-    env:
-      UPSTREAM_COMMIT: ${{ needs.quality.outputs.upstream-commit }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-      - uses: mymindstorm/setup-emsdk@v14
-      - run: npm ci
-      - run: node ci/scripts/sync-upstream.mjs "$UPSTREAM_COMMIT"
-      - run: npm run wasm:build:cpu -- --version "${RELEASE_VERSION}-cpu" --upstream-commit "$UPSTREAM_COMMIT"
-      - env:
-          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-cpu
-        run: node ci/scripts/check-abi.mjs
-      - env:
-          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-cpu
-        run: node ci/scripts/check-release.mjs
-      - run: npm run typecheck
-      - run: npm run bench:node -- --commit "${RELEASE_VERSION}-cpu" --version "${RELEASE_VERSION}-cpu" --backend cpu --model-url "$WASML_QWEN_MODEL_URL"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: wasml-llama-cpu-${{ github.run_number }}
-          path: |
-            wasm-build/dist/${{ env.RELEASE_VERSION }}-cpu
-            bench/results/${{ env.RELEASE_VERSION }}-cpu.json
-
   build-webgpu:
     runs-on: ubuntu-latest
     needs: quality
@@ -141,13 +112,17 @@ jobs:
       UPSTREAM_COMMIT: ${{ needs.quality.outputs.upstream-commit }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-      - uses: mymindstorm/setup-emsdk@v14
-      - uses: browser-actions/setup-chrome@v1
+      - uses: mymindstorm/setup-emsdk@v15
+      - uses: browser-actions/setup-chrome@v2
         id: chrome
+        with:
+          install-dependencies: true
       - run: npm ci
       - run: node ci/scripts/sync-upstream.mjs "$UPSTREAM_COMMIT"
       - run: npm run wasm:build:webgpu -- --version "${RELEASE_VERSION}-webgpu" --upstream-commit "$UPSTREAM_COMMIT"
@@ -158,14 +133,25 @@ jobs:
           RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-webgpu
         run: node ci/scripts/check-release.mjs
       - run: npm run typecheck
-      - if: ${{ vars.WASML_ENABLE_WEBGPU_BENCH == 'true' }}
+      - id: webgpu-preflight
+        if: ${{ vars.WASML_ENABLE_WEBGPU_BENCH == 'true' }}
+        env:
+          CHROME_BIN: ${{ steps.chrome.outputs.chrome-path }}
+        run: npx tsx bench/src/webgpu-availability.ts
+      - if: ${{ vars.WASML_ENABLE_WEBGPU_BENCH == 'true' && steps.webgpu-preflight.outputs.available != 'true' }}
+        run: |
+          echo "Skipping WebGPU benchmark: ${{ steps.webgpu-preflight.outputs.reason }}"
+      - if: ${{ vars.WASML_ENABLE_WEBGPU_BENCH == 'true' && steps.webgpu-preflight.outputs.available == 'true' }}
         env:
           CHROME_BIN: ${{ steps.chrome.outputs.chrome-path }}
         run: npm run bench:browser -- --commit "${RELEASE_VERSION}-webgpu" --version "${RELEASE_VERSION}-webgpu" --backend webgpu --model-url "$WASML_QWEN_MODEL_URL" --chrome "$CHROME_BIN"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: wasml-llama-webgpu-${{ github.run_number }}
-          path: |
-            wasm-build/dist/${{ env.RELEASE_VERSION }}-webgpu
-            bench/results/${{ env.RELEASE_VERSION }}-webgpu.json
+          path: wasm-build/dist/${{ env.RELEASE_VERSION }}-webgpu
+      - uses: actions/upload-artifact@v6
+        if: ${{ always() && vars.WASML_ENABLE_WEBGPU_BENCH == 'true' && steps.webgpu-preflight.outputs.available == 'true' }}
+        with:
+          name: wasml-llama-webgpu-bench-${{ github.run_number }}
+          path: bench/results/${{ env.RELEASE_VERSION }}-webgpu.json
