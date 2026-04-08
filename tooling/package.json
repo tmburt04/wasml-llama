@@ -1,0 +1,14 @@
+{
+  "name": "@wasml-llama/tooling",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wasml-llama/wasm-build": "0.1.0"
+  }
+}

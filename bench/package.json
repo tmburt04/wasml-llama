@@ -1,0 +1,18 @@
+{
+  "name": "@wasml-llama/bench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wasml-llama/runtime-api": "0.1.0",
+    "@wasml-llama/runtime-core": "0.1.0",
+    "@wasml-llama/runtime-worker": "0.1.0",
+    "@wasml-llama/wasm-build": "0.1.0",
+    "@wasml-llama/tooling": "0.1.0"
+  }
+}

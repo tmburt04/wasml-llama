@@ -1,0 +1,22 @@
+[
+  "_malloc",
+  "_free",
+  "_wasml_backend_init",
+  "_wasml_backend_free",
+  "_wasml_load_model",
+  "_wasml_unload_model",
+  "_wasml_begin_inference",
+  "_wasml_step_inference",
+  "_wasml_step_inference_many",
+  "_wasml_generate_all",
+  "_wasml_last_chunk_text",
+  "_wasml_last_chunk_token_count",
+  "_wasml_last_token_text",
+  "_wasml_last_token_id",
+  "_wasml_last_token_is_eog",
+  "_wasml_last_error",
+  "_wasml_model_size",
+  "_wasml_model_n_params",
+  "_wasml_supports_gpu_offload",
+  "_wasml_reset_state"
+]

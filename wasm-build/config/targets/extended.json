@@ -1,0 +1,23 @@
+{
+  "name": "extended",
+  "features": [
+    "minimal-runtime",
+    "sampling",
+    "token-utils"
+  ],
+  "flags": [
+    "-DLLAMA_BUILD_TESTS=OFF",
+    "-DLLAMA_BUILD_EXAMPLES=OFF",
+    "-DLLAMA_BUILD_TOOLS=OFF",
+    "-DLLAMA_BUILD_SERVER=OFF",
+    "-DLLAMA_BUILD_HTML=OFF",
+    "-DLLAMA_WASM_SINGLE_FILE=OFF",
+    "-DGGML_NATIVE=OFF",
+    "-DLLAMA_CURL=OFF",
+    "-DGGML_LTO=ON"
+  ],
+  "memory": {
+    "minBytes": 402653184,
+    "maxBytes": 3221225472
+  }
+}

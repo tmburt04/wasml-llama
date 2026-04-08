@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "WebWorker"
+    ],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "useUnknownInCatchVariables": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": [
+      "node"
+    ],
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@wasml-llama/runtime-core": [
+        "runtime-core/src/index.ts"
+      ],
+      "@wasml-llama/runtime-worker": [
+        "runtime-worker/src/index.ts"
+      ],
+      "@wasml-llama/runtime-api": [
+        "runtime-api/src/index.ts"
+      ],
+      "@wasml-llama/wasm-build": [
+        "wasm-build/src/index.ts"
+      ],
+      "@wasml-llama/tooling": [
+        "tooling/src/index.ts"
+      ],
+      "@wasml-llama/bench": [
+        "bench/src/index.ts"
+      ]
+    }
+  }
+}

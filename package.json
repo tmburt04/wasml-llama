@@ -1,0 +1,43 @@
+{
+  "name": "wasml-llama",
+  "version": "0.1.0",
+  "description": "llama.cpp → WASM pipeline with worker runtime, WebGPU artifacts, and benchmarks",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "runtime-core",
+    "runtime-worker",
+    "runtime-api",
+    "wasm-build",
+    "tooling",
+    "bench",
+    "tests"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "tsc -b tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run --config tests/vitest.config.ts",
+    "serve": "tsx bench/src/serve.ts",
+    "bench": "tsx bench/src/cli.ts",
+    "bench:browser": "tsx bench/src/cli.ts browser",
+    "bench:node": "tsx bench/src/cli.ts node",
+    "wasm:build": "tsx wasm-build/src/cli.ts build",
+    "wasm:build:cpu": "tsx wasm-build/src/cli.ts build --backend cpu",
+    "wasm:build:webgpu": "tsx wasm-build/src/cli.ts build --backend webgpu",
+    "wasm:manifest": "tsx wasm-build/src/cli.ts manifest",
+    "inspect": "tsx tooling/src/cli.ts inspect",
+    "estimate-memory": "tsx tooling/src/cli.ts estimate-memory",
+    "check-compat": "tsx tooling/src/cli.ts check-compat"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.5.0",
+    "eslint": "^10.1.0",
+    "puppeteer-core": "^24.40.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.0",
+    "vitest": "^4.1.2"
+  }
+}

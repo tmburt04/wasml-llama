@@ -1,0 +1,26 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./runtime-core"
+    },
+    {
+      "path": "./runtime-worker"
+    },
+    {
+      "path": "./runtime-api"
+    },
+    {
+      "path": "./wasm-build"
+    },
+    {
+      "path": "./tooling"
+    },
+    {
+      "path": "./bench"
+    },
+    {
+      "path": "./tests"
+    }
+  ]
+}

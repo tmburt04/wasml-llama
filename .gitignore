@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.build/
+# stray Emscripten / native build outputs at repo root
+a.out
+a.out.js
+a.out.wasm
+coverage/
+.tsbuildinfo
+*.log
+.DS_Store
+wasm-build/dist/
+# Keep .gitignore itself and keep the results directory; ignore local/dev run files
+bench/results/*.local.json
+bench/results/local-*.json
+bench/results/my-*.json
+bench/results/verify-*.json
+upstream-sync/vendor/llama.cpp/
+!upstream-sync/vendor/README.md

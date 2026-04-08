@@ -1,0 +1,14 @@
+{
+  "name": "@wasml-llama/runtime-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wasml-llama/runtime-core": "0.1.0"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "noEmit": true
+  },
+  "references": [
+    {
+      "path": "../runtime-core"
+    },
+    {
+      "path": "../runtime-worker"
+    },
+    {
+      "path": "../runtime-api"
+    },
+    {
+      "path": "../wasm-build"
+    },
+    {
+      "path": "../tooling"
+    }
+  ],
+  "include": [
+    "**/*.ts"
+  ]
+}

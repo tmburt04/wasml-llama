@@ -1,0 +1,21 @@
+{
+  "name": "core",
+  "features": [
+    "minimal-runtime"
+  ],
+  "flags": [
+    "-DLLAMA_BUILD_TESTS=OFF",
+    "-DLLAMA_BUILD_EXAMPLES=OFF",
+    "-DLLAMA_BUILD_TOOLS=OFF",
+    "-DLLAMA_BUILD_SERVER=OFF",
+    "-DLLAMA_BUILD_HTML=OFF",
+    "-DLLAMA_WASM_SINGLE_FILE=OFF",
+    "-DGGML_NATIVE=OFF",
+    "-DLLAMA_CURL=OFF",
+    "-DGGML_LTO=ON"
+  ],
+  "memory": {
+    "minBytes": 268435456,
+    "maxBytes": 2147483648
+  }
+}

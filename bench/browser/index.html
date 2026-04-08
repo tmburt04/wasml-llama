@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover" />
+    <title>wasml-llama</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg:      #0b0d12;
+        --surface: #10131a;
+        --raised:  #171a22;
+        --border:  #1d2030;
+        --text:    #b8bcc8;
+        --bright:  #dde0e8;
+        --muted:   #4e5466;
+        --accent:  #4eedb4;
+        --warn:    #f0c040;
+        --danger:  #f05070;
+        --token-color: #dde0e8;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body {
+        height: 100dvh;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Menlo, monospace;
+        font-size: 13px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ── app shell ─────────────────────────────────────── */
+      .app {
+        display: grid;
+        grid-template-rows: auto 1fr auto auto; /* header · output · dock · footer */
+        height: 100dvh;
+        overflow: hidden;
+      }
+
+      /* ── header ─────────────────────────────────────────── */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        height: 40px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+
+      .brand {
+        font-weight: 700;
+        font-size: 12px;
+        color: var(--accent);
+        letter-spacing: .06em;
+        white-space: nowrap;
+      }
+
+      .sep { color: var(--border); user-select: none; }
+
+      .status-badge {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .status-dot {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: var(--muted);
+        flex-shrink: 0;
+      }
+      .status-dot.running { background: var(--warn); animation: pulse 1.1s ease-in-out infinite; }
+      .status-dot.done    { background: var(--accent); }
+      .status-dot.error   { background: var(--danger); }
+      @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+      .spacer { flex: 1; }
+
+      .btn-cfg {
+        height: 26px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: color .15s, border-color .15s;
+      }
+      .btn-cfg:hover { color: var(--text); border-color: var(--text); }
+      .btn-cfg[aria-expanded="true"] {
+        color: var(--accent);
+        border-color: rgba(78,237,180,.4);
+        background: rgba(78,237,180,.06);
+      }
+
+      /* ── main + config overlay ───────────────────────────── */
+      main {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .output {
+        height: 100%;
+        padding: 20px 20px 8px;
+        overflow-y: auto;
+        scroll-behavior: smooth;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+      }
+
+      /* ── empty state ──────────────────────────────────────── */
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        user-select: none;
+      }
+      .empty-state .icon { font-size: 28px; opacity: .35; }
+      .empty-state .hint { opacity: .6; }
+      .empty-state kbd {
+        font: inherit;
+        font-size: 11px;
+        background: var(--raised);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        padding: 1px 5px;
+      }
+
+      /* ── status line (during download / load) ─────────────── */
+      .status-line {
+        padding: 8px 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .progress-bar {
+        display: inline-block;
+        height: 3px;
+        background: var(--border);
+        border-radius: 2px;
+        width: 120px;
+        vertical-align: middle;
+        margin-left: 6px;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 2px;
+        transition: width .3s ease;
+      }
+
+      /* ── run blocks ───────────────────────────────────────── */
+      .run-block {
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .run-block:last-child { border-bottom: none; margin-bottom: 0; }
+
+      .run-prompt {
+        font-size: 12px;
+        color: var(--accent);
+        opacity: .65;
+        margin-bottom: 10px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .run-prompt::before {
+        content: '▸ ';
+        color: var(--muted);
+        opacity: 1;
+      }
+
+      .run-response {
+        color: var(--bright);
+        line-height: 1.85;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 13px;
+      }
+
+      .cursor {
+        display: inline-block;
+        width: 2px;
+        height: .9em;
+        background: var(--accent);
+        vertical-align: text-bottom;
+        margin-left: 1px;
+        animation: blink .9s step-end infinite;
+      }
+      @keyframes blink { 50% { opacity: 0; } }
+
+      .run-stats {
+        margin-top: 10px;
+        font-size: 10px;
+        color: var(--muted);
+        letter-spacing: .04em;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .run-stats .stat { white-space: nowrap; }
+      .run-stats .stat-hi { color: var(--accent); }
+
+      /* ── config overlay ──────────────────────────────────── */
+      .cfg {
+        position: absolute;
+        inset: 0 0 0 auto;
+        width: 310px;
+        background: var(--surface);
+        border-left: 1px solid var(--border);
+        overflow-y: auto;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        transform: translateX(100%);
+        transition: transform .18s ease;
+        z-index: 20;
+      }
+      .cfg.open { transform: translateX(0); }
+
+      .cfg-section-title {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--muted);
+        padding: 6px 0 2px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .cfg label { display: grid; gap: 3px; }
+      .cfg .lbl {
+        font-size: 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: .06em;
+      }
+      .cfg input, .cfg textarea, .cfg select {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--bg);
+        color: var(--bright);
+        font: inherit;
+        font-size: 12px;
+        padding: 6px 8px;
+        height: 30px;
+      }
+      .cfg textarea { height: auto; min-height: 58px; resize: vertical; }
+      .cfg input:focus, .cfg textarea:focus, .cfg select:focus {
+        outline: none;
+        border-color: rgba(78,237,180,.4);
+        box-shadow: 0 0 0 2px rgba(78,237,180,.06);
+      }
+
+      .cfg-actions { display: flex; gap: 6px; }
+      .cfg-actions button {
+        flex: 1;
+        height: 28px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--bg);
+        color: var(--muted);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      .cfg-actions button:hover { color: var(--text); border-color: var(--text); }
+
+      .diag-wrap {
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--bg);
+        overflow: auto;
+        max-height: 22dvh;
+        min-height: 80px;
+      }
+      .diag {
+        padding: 8px;
+        color: var(--text);
+        font-size: 11px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.45;
+      }
+
+      /* ── prompt dock ─────────────────────────────────────── */
+      .prompt-dock {
+        border-top: 1px solid var(--border);
+        background: var(--surface);
+        padding: 10px 12px;
+        display: grid;
+        gap: 7px;
+        flex-shrink: 0;
+      }
+
+      #field-prompt {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        background: var(--bg);
+        color: var(--bright);
+        font: inherit;
+        font-size: 13px;
+        padding: 9px 11px;
+        resize: none;
+        min-height: 46px;
+        max-height: 200px;
+        overflow-y: auto;
+        line-height: 1.6;
+        transition: border-color .15s;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+      }
+      #field-prompt:focus {
+        outline: none;
+        border-color: rgba(78,237,180,.35);
+        box-shadow: 0 0 0 2px rgba(78,237,180,.05);
+      }
+      #field-prompt:disabled { opacity: .45; }
+
+      .dock-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      /* quick-setting fields */
+      .qs {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--muted);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .qs input {
+        width: 62px;
+        height: 26px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--bg);
+        color: var(--bright);
+        font: inherit;
+        font-size: 12px;
+        padding: 0 6px;
+        text-align: right;
+      }
+      .qs input:focus {
+        outline: none;
+        border-color: rgba(78,237,180,.35);
+      }
+      .qs input:disabled { opacity: .4; }
+      .qs--temp input { width: 52px; }
+
+      .dock-divider { flex: 1; }
+
+      .kbd-hint {
+        font-size: 10px;
+        color: var(--muted);
+        white-space: nowrap;
+        opacity: .7;
+      }
+      .kbd-hint kbd {
+        font: inherit;
+        background: var(--raised);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        padding: 1px 5px;
+      }
+
+      .btn-run, .btn-stop {
+        height: 28px;
+        padding: 0 12px;
+        border: none;
+        border-radius: 4px;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .btn-run  { background: var(--accent); color: var(--bg); }
+      .btn-run:disabled  { opacity: .3; cursor: not-allowed; }
+      .btn-stop { background: var(--danger); color: #fff; }
+      .btn-stop:disabled { opacity: .25; cursor: not-allowed; }
+
+      /* ── footer ──────────────────────────────────────────── */
+      footer {
+        border-top: 1px solid var(--border);
+        background: var(--surface);
+        flex-shrink: 0;
+      }
+
+      .stages {
+        display: flex;
+        height: 24px;
+        border-bottom: 1px solid var(--border);
+      }
+      .stage {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        font-size: 9px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        border-right: 1px solid var(--border);
+      }
+      .stage:last-child { border-right: none; }
+      .sdot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--raised);
+        flex-shrink: 0;
+      }
+      .stage[data-state="active"]      { color: var(--warn); }
+      .stage[data-state="active"] .sdot { background: var(--warn); box-shadow: 0 0 5px rgba(240,192,64,.5); }
+      .stage[data-state="done"]        { color: var(--accent); }
+      .stage[data-state="done"] .sdot  { background: var(--accent); }
+      .stage[data-state="error"]       { color: var(--danger); }
+      .stage[data-state="error"] .sdot { background: var(--danger); }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+      }
+      .m {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 5px 2px;
+        border-right: 1px solid var(--border);
+        gap: 1px;
+      }
+      .m:last-child { border-right: none; }
+      .m-label { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+      .m-value { font-size: 13px; font-weight: 700; color: var(--bright); }
+      .m-value.live { color: var(--warn); }
+
+      /* ── responsive ──────────────────────────────────────── */
+      @media (max-width: 600px) {
+        .cfg {
+          width: 100%;
+          border-left: none;
+          border-top: 1px solid var(--border);
+        }
+        .metrics { grid-template-columns: repeat(3, 1fr); }
+        .dock-controls { gap: 6px; }
+      }
+      @media (max-height: 520px) {
+        header { height: 34px; }
+        .output { padding: 10px 14px 6px; }
+        .stages { height: 20px; }
+        .stage { font-size: 8px; }
+        .m { padding: 3px 2px; }
+        .m-value { font-size: 11px; }
+        .prompt-dock { padding: 7px 10px; gap: 5px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+
+      <!-- ── header ──────────────────────────────────── -->
+      <header>
+        <span class="brand">wasml-llama</span>
+        <span class="sep">/</span>
+        <span class="status-badge">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">idle</span>
+        </span>
+        <span class="spacer"></span>
+        <button class="btn-cfg" id="cfg-btn" type="button" aria-expanded="false">⚙ Config</button>
+      </header>
+
+      <!-- ── output + config overlay ─────────────────── -->
+      <main>
+        <div class="output" id="output">
+          <div class="empty-state" id="empty-state">
+            <span class="icon">⌗</span>
+            <span>Type a prompt below and press <kbd>⌘↵</kbd> to run</span>
+            <span class="hint">First run downloads the model — later runs can reuse the browser cache</span>
+          </div>
+        </div>
+
+        <aside class="cfg" id="cfg-panel">
+          <span class="cfg-section-title">Artifact</span>
+          <label><span class="lbl">Version</span><input id="field-version" type="text" placeholder="local-webgpu" /></label>
+          <label>
+            <span class="lbl">Target</span>
+            <select id="field-target">
+              <option value="core">core</option>
+              <option value="extended">extended</option>
+              <option value="debug">debug</option>
+            </select>
+          </label>
+          <label>
+            <span class="lbl">Backend</span>
+            <select id="field-backend">
+              <option value="webgpu">webgpu</option>
+              <option value="cpu">cpu</option>
+            </select>
+          </label>
+
+          <span class="cfg-section-title">Model</span>
+          <label><span class="lbl">Model ID</span><input id="field-modelId" type="text" /></label>
+          <label><span class="lbl">Model URL</span><input id="field-modelUrl" type="url" /></label>
+          <label><span class="lbl">Context Size</span><input id="field-contextSize" type="number" min="256" max="16384" value="2048" /></label>
+          <label><span class="lbl">Seed (0 = random)</span><input id="field-seed" type="number" min="0" value="0" /></label>
+
+          <span class="cfg-section-title">Run</span>
+          <label><span class="lbl">Commit tag</span><input id="field-commit" type="text" placeholder="browser-manual" /></label>
+
+          <div class="cfg-actions">
+            <button id="copy-url-btn" type="button">⎘ Copy URL</button>
+            <button id="clear-output-btn" type="button">✕ Clear</button>
+          </div>
+          <div class="cfg-actions">
+            <button id="clear-model-cache-btn" type="button">Clear model cache</button>
+          </div>
+
+          <span class="cfg-section-title">Diagnostics</span>
+          <div class="diag-wrap"><pre class="diag" id="diag">No diagnostics yet.</pre></div>
+        </aside>
+      </main>
+
+      <!-- ── prompt dock ─────────────────────────────── -->
+      <div class="prompt-dock" id="prompt-dock">
+        <textarea id="field-prompt" placeholder="Enter a prompt…" rows="2"></textarea>
+        <div class="dock-controls">
+          <label class="qs">
+            <span>tokens</span>
+            <input id="field-maxTokens" type="number" min="1" max="2048" value="48" />
+          </label>
+          <label class="qs qs--temp">
+            <span>temp</span>
+            <input id="field-temp" type="number" min="0" max="2" step="0.1" value="0.0" />
+          </label>
+          <span class="dock-divider"></span>
+          <span class="kbd-hint"><kbd>⌘↵</kbd> run</span>
+          <button class="btn-stop" id="stop-btn" type="button" disabled>■ Stop</button>
+          <button class="btn-run"  id="run-btn"  type="button">▶ Run</button>
+        </div>
+      </div>
+
+      <!-- ── footer ──────────────────────────────────── -->
+      <footer>
+        <div class="stages" id="stage-list">
+          <div class="stage" data-stage="bootstrap" data-state="idle"><span class="sdot"></span>boot</div>
+          <div class="stage" data-stage="download"  data-state="idle"><span class="sdot"></span>download</div>
+          <div class="stage" data-stage="load"      data-state="idle"><span class="sdot"></span>load</div>
+          <div class="stage" data-stage="decode"    data-state="idle"><span class="sdot"></span>decode</div>
+          <div class="stage" data-stage="complete"  data-state="idle"><span class="sdot"></span>done</div>
+        </div>
+        <div class="metrics">
+          <div class="m"><span class="m-label">startup</span><span class="m-value" id="metric-startup">--</span></div>
+          <div class="m"><span class="m-label">dl</span><span class="m-value" id="metric-dl">--</span></div>
+          <div class="m"><span class="m-label">load</span><span class="m-value" id="metric-load">--</span></div>
+          <div class="m"><span class="m-label">tok/s</span><span class="m-value" id="metric-tps">--</span></div>
+          <div class="m"><span class="m-label">tokens</span><span class="m-value" id="metric-tokens">--</span></div>
+          <div class="m"><span class="m-label">decode</span><span class="m-value" id="metric-decode">--</span></div>
+        </div>
+      </footer>
+
+    </div>
+    <script type="module" src="/bench/browser/bench-browser.js"></script>
+  </body>
+</html>

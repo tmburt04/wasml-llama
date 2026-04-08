@@ -1,0 +1,19 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "references": [
+    {
+      "path": "../runtime-core"
+    },
+    {
+      "path": "../runtime-worker"
+    }
+  ],
+  "include": [
+    "src/**/*.ts"
+  ]
+}
