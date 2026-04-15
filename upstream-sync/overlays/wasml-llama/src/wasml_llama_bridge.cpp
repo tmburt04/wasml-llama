@@ -123,6 +123,7 @@ void wasml_backend_free() {
 }
 
 int wasml_load_model(const char * path_model, int32_t n_ctx, int32_t n_gpu_layers, int32_t use_gpu, int32_t warmup) {
+    (void)warmup;
     clear_error();
     if (path_model == nullptr || path_model[0] == '\0') {
         return fail("model path missing");
@@ -160,10 +161,6 @@ int wasml_load_model(const char * path_model, int32_t n_ctx, int32_t n_gpu_layer
     }
 
     g_state.vocab = llama_model_get_vocab(g_state.model);
-
-    if (warmup != 0) {
-        llama_set_warmup(g_state.ctx, true);
-    }
 
     g_state.piece_buf.reserve(64);
     g_state.single_token_buf.reserve(1);

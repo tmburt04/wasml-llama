@@ -1,0 +1,132 @@
+name: sync-upstream
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      upstream-commit:
+        description: 'llama.cpp commit SHA to target (empty = latest HEAD)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: true
+
+env:
+  RELEASE_VERSION: sync-candidate
+
+jobs:
+  sync-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - uses: mymindstorm/setup-emsdk@v15
+      - run: npm ci
+      - id: sync
+        env:
+          TARGET_COMMIT: ${{ inputs.upstream-commit }}
+        run: |
+          RESULT_FILE="$RUNNER_TEMP/sync-result.json"
+          node ci/scripts/sync-upstream.mjs ${TARGET_COMMIT:+"$TARGET_COMMIT"} > "$RESULT_FILE"
+          UPSTREAM_COMMIT=$(node --input-type=module -e \
+            "import { readFileSync } from 'node:fs'; const r = JSON.parse(readFileSync(process.argv[1], 'utf8')); process.stdout.write(r.upstreamCommit);" \
+            "$RESULT_FILE")
+          PINNED=$(cat upstream-sync/vendor/pinned-commit 2>/dev/null || echo '')
+          CHANGELOG=$(node --input-type=module -e \
+            "import { readFileSync } from 'node:fs'; const r = JSON.parse(readFileSync(process.argv[1], 'utf8')); process.stdout.write(r.changelog ?? '');" \
+            "$RESULT_FILE")
+          echo "upstream-commit=$UPSTREAM_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "updated=$( [ "$UPSTREAM_COMMIT" != "$PINNED" ] && echo 'true' || echo 'false' )" >> "$GITHUB_OUTPUT"
+          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+      - env:
+          UPSTREAM_COMMIT: ${{ steps.sync.outputs.upstream-commit }}
+        run: npm run wasm:build:webgpu -- --version "${RELEASE_VERSION}-webgpu" --upstream-commit "$UPSTREAM_COMMIT"
+      - env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-webgpu
+        run: node ci/scripts/check-abi.mjs
+      - env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-webgpu
+        run: node ci/scripts/check-release.mjs
+      - name: Open PR to advance pinned commit
+        if: success() && steps.sync.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPSTREAM_COMMIT: ${{ steps.sync.outputs.upstream-commit }}
+          CHANGELOG: ${{ steps.sync.outputs.changelog }}
+        run: |
+          SHORT=$(echo "$UPSTREAM_COMMIT" | head -c 10)
+          BRANCH="upstream-sync/${SHORT}"
+          git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1 && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          echo "$UPSTREAM_COMMIT" > upstream-sync/vendor/pinned-commit
+          git checkout -b "$BRANCH"
+          git add upstream-sync/vendor/pinned-commit
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: advance llama.cpp upstream to ${SHORT}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --title "chore: advance llama.cpp upstream to ${SHORT}" \
+            --body "$(cat <<EOF
+          ## Upstream sync
+
+          Advances the pinned llama.cpp commit to \`${UPSTREAM_COMMIT}\`.
+
+          ### Changelog
+          \`\`\`
+          ${CHANGELOG}
+          \`\`\`
+
+          Build and ABI checks passed on this commit.
+          EOF
+          )"
+      - name: Open issue for bridge breakage
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPSTREAM_COMMIT: ${{ steps.sync.outputs.upstream-commit }}
+          CHANGELOG: ${{ steps.sync.outputs.changelog }}
+        run: |
+          SHORT=$(echo "${UPSTREAM_COMMIT:-unknown}" | head -c 10)
+          LABEL="upstream-drift"
+          gh label create "$LABEL" --color E4E669 --description "Upstream llama.cpp API drift" 2>/dev/null || true
+          EXISTING=$(gh issue list --label "$LABEL" --state open --json title --jq '.[].title' | grep "$SHORT" 2>/dev/null || true)
+          [ -n "$EXISTING" ] && exit 0
+          gh issue create \
+            --title "Bridge breakage: llama.cpp ${SHORT}" \
+            --label "$LABEL" \
+            --body "$(cat <<EOF
+          ## Build failure against upstream llama.cpp
+
+          The sync-upstream workflow failed to build against commit \`${UPSTREAM_COMMIT}\`.
+
+          The bridge at \`upstream-sync/overlays/wasml-llama/src/wasml_llama_bridge.cpp\` likely needs updating.
+
+          ### Upstream changelog
+          \`\`\`
+          ${CHANGELOG}
+          \`\`\`
+
+          ### Next steps
+          1. Review the API changes listed above.
+          2. Update \`wasml_llama_bridge.cpp\` to match the new API.
+          3. Trigger this workflow manually after fixing: **Actions → sync-upstream → Run workflow**.
+          EOF
+          )"
