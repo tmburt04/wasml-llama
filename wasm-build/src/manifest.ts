@@ -7,6 +7,7 @@
   export interface BuildManifestV1 {
     schemaVersion: 2;
     upstreamCommit: string;
+    upstreamTag?: string;
     abiVersion: string;
     featureToggles: {
       simd: boolean;
@@ -32,6 +33,7 @@
     version: string;
     builtAt: string;
     upstreamCommit: string;
+    upstreamTag?: string;
     abiVersion: string;
     toolchainVersion: string;
     backend: BuildBackend;

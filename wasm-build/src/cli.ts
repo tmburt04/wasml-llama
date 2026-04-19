@@ -17,6 +17,7 @@ async function main(): Promise<void> {
   if (command === 'build') {
     const version = readFlag('--version', 'dev') ?? 'dev';
     const upstreamCommit = readFlag('--upstream-commit', 'unknown-upstream') ?? 'unknown-upstream';
+    const upstreamTag = readFlag('--upstream-tag');
     const abiVersion = readFlag('--abi-version', '0.2.0') ?? '0.2.0';
     const backend = (readFlag('--backend', 'cpu') ?? 'cpu') as 'cpu' | 'webgpu';
     const threads = args.includes('--threads');
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
       console.log(JSON.stringify(await buildArtifacts({
         version,
         upstreamCommit,
+        ...(upstreamTag ? { upstreamTag } : {}),
         abiVersion,
         backend,
         threads,

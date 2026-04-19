@@ -8,14 +8,40 @@ function ensureVendorCheckout() {
   run('git', ['clone', '--depth', '1', 'https://github.com/ggml-org/llama.cpp.git', vendorRoot], repoRoot);
 }
 
-function fetchUpstream(targetCommit) {
-  if (targetCommit) {
-    run('git', ['fetch', '--depth', '1', 'origin', targetCommit], vendorRoot);
-    return run('git', ['rev-parse', 'FETCH_HEAD'], vendorRoot);
+const releaseTagPattern = /^b\d+$/;
+
+function isReleaseTag(value) {
+  return typeof value === 'string' && releaseTagPattern.test(value);
+}
+
+function resolveLatestReleaseTag() {
+  const refs = run('git', ['ls-remote', '--tags', '--refs', 'https://github.com/ggml-org/llama.cpp.git', 'refs/tags/b*'], repoRoot);
+  let latest = -1;
+  let latestTag = null;
+  for (const line of refs.split('\n')) {
+    const match = line.match(/refs\/tags\/(b\d+)$/);
+    if (!match) continue;
+    const num = Number(match[1].slice(1));
+    if (num > latest) {
+      latest = num;
+      latestTag = match[1];
+    }
   }
-  run('git', ['fetch', '--depth', '1', 'origin'], vendorRoot);
-  const headRef = run('git', ['rev-parse', '--abbrev-ref', 'origin/HEAD'], vendorRoot);
-  return run('git', ['rev-parse', headRef], vendorRoot);
+  if (!latestTag) {
+    throw new Error('Unable to resolve latest llama.cpp release tag');
+  }
+  return latestTag;
+}
+
+function fetchUpstream(target) {
+  let tag = isReleaseTag(target) ? target : null;
+  if (!target) {
+    tag = resolveLatestReleaseTag();
+  }
+  const ref = tag ? `refs/tags/${tag}` : target;
+  run('git', ['fetch', '--depth', '1', '--tags', 'origin', ref], vendorRoot);
+  const commit = run('git', ['rev-parse', 'FETCH_HEAD'], vendorRoot);
+  return { commit, tag };
 }
 
 function fastForward(targetCommit) {
@@ -51,16 +77,17 @@ function changelog(oldCommit, newCommit) {
   }
 }
 
-export function syncUpstream(targetCommit) {
+export function syncUpstream(target) {
   ensureVendorCheckout();
   const previousCommit = currentVendorCommit();
-  const upstreamCommit = fetchUpstream(targetCommit);
+  const { commit: upstreamCommit, tag: upstreamTag } = fetchUpstream(target);
   fastForward(upstreamCommit);
   applyPatches();
   const contract = readJson(abiContractPath);
   const updated = previousCommit !== upstreamCommit;
   return {
     upstreamCommit,
+    upstreamTag,
     previousCommit,
     updated,
     changelog: updated ? changelog(previousCommit, upstreamCommit) : '',

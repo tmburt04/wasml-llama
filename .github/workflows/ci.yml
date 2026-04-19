@@ -54,15 +54,23 @@ jobs:
         run: |
           RESULT_FILE="$RUNNER_TEMP/sync-result.json"
           node ci/scripts/sync-upstream.mjs > "$RESULT_FILE"
-          echo "upstream-commit<<EOF" >> "$GITHUB_OUTPUT"
-          node --input-type=module -e \
-            "import { readFileSync } from 'node:fs'; const r = JSON.parse(readFileSync(process.argv[1], 'utf8')); process.stdout.write(r.upstreamCommit);" \
-            "$RESULT_FILE" >> "$GITHUB_OUTPUT"
-          echo >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          read_field() {
+            node --input-type=module -e \
+              "import { readFileSync } from 'node:fs'; const r = JSON.parse(readFileSync(process.argv[1], 'utf8')); process.stdout.write(String(r[process.argv[2]] ?? ''));" \
+              "$RESULT_FILE" "$1"
+          }
+          {
+            echo "upstream-commit=$(read_field upstreamCommit)"
+            echo "upstream-tag=$(read_field upstreamTag)"
+          } >> "$GITHUB_OUTPUT"
       - env:
           UPSTREAM_COMMIT: ${{ steps.sync.outputs.upstream-commit }}
-        run: npm run wasm:build:webgpu -- --version "${RELEASE_VERSION}-webgpu" --upstream-commit "$UPSTREAM_COMMIT"
+          UPSTREAM_TAG: ${{ steps.sync.outputs.upstream-tag }}
+        run: |
+          npm run wasm:build:webgpu -- \
+            --version "${RELEASE_VERSION}-webgpu" \
+            --upstream-commit "$UPSTREAM_COMMIT" \
+            ${UPSTREAM_TAG:+--upstream-tag "$UPSTREAM_TAG"}
       - env:
           RELEASE_VERSION: ${{ env.RELEASE_VERSION }}-webgpu
         run: node ci/scripts/check-abi.mjs

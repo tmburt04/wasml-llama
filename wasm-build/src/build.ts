@@ -9,6 +9,7 @@ import { writeManifest, writeMetadata } from './manifest.js';
 export interface BuildOptions {
   version: string;
   upstreamCommit: string;
+  upstreamTag?: string;
   abiVersion: string;
   backend: BuildBackend;
   threads: boolean;
@@ -99,6 +100,7 @@ export async function buildArtifacts(options: BuildOptions): Promise<{ manifest:
   const manifest: BuildManifestV1 = {
     schemaVersion: 2,
     upstreamCommit: options.upstreamCommit,
+    ...(options.upstreamTag ? { upstreamTag: options.upstreamTag } : {}),
     abiVersion: options.abiVersion,
     featureToggles: {
       simd: true,
@@ -114,6 +116,7 @@ export async function buildArtifacts(options: BuildOptions): Promise<{ manifest:
     version: options.version,
     builtAt: new Date().toISOString(),
     upstreamCommit: options.upstreamCommit,
+    ...(options.upstreamTag ? { upstreamTag: options.upstreamTag } : {}),
     abiVersion: options.abiVersion,
     toolchainVersion: toolchain.version,
     backend: options.backend,

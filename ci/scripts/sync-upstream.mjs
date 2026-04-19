@@ -2,16 +2,20 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const pinnedCommitPath = resolve(process.cwd(), 'upstream-sync', 'vendor', 'pinned-commit');
+const vendorDir = resolve(process.cwd(), 'upstream-sync', 'vendor');
+const pinnedVersionPath = resolve(vendorDir, 'pinned-version');
+const pinnedCommitPath = resolve(vendorDir, 'pinned-commit');
+
+function readPinned(path) {
+  if (!existsSync(path)) return null;
+  const value = readFileSync(path, 'utf8').trim();
+  return value || null;
+}
 
 function resolveSyncTarget() {
   const explicit = process.argv[2]?.trim();
   if (explicit) return explicit;
-  if (existsSync(pinnedCommitPath)) {
-    const pinned = readFileSync(pinnedCommitPath, 'utf8').trim();
-    if (pinned) return pinned;
-  }
-  return null;
+  return readPinned(pinnedVersionPath) ?? readPinned(pinnedCommitPath);
 }
 
 const target = resolveSyncTarget();
